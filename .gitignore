@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# Node.js
+node_modules/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.un~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Recordings / data
+recordings/
+*.csv
+*.hdf5
+
+# Alembic
+*.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Tobii Pro SDK (not bundled, must be installed separately)
+tobii_research/

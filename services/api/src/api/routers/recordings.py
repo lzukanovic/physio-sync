@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.session import get_db
-from api.models.recording import Recording, RecordingDevice
+from api.models.device import Device
+from api.models.recording import Recording
 from api.schemas.recording import RecordingCreate, RecordingRead
 
 router = APIRouter()
@@ -23,14 +24,11 @@ async def list_recordings(db: AsyncSession = Depends(get_db)):
 async def create_recording(body: RecordingCreate, db: AsyncSession = Depends(get_db)):
     recording = Recording(
         name=body.name,
+        description=body.description,
+        tags=body.tags,
         metadata_=body.metadata,
     )
     db.add(recording)
-    await db.flush()
-
-    for dev_id in body.device_ids:
-        db.add(RecordingDevice(recording_id=recording.id, device_id=dev_id))
-
     await db.commit()
     await db.refresh(recording)
     return recording
@@ -49,6 +47,23 @@ async def start_recording(recording_id: int, db: AsyncSession = Depends(get_db))
     recording = await db.get(Recording, recording_id)
     if not recording:
         raise HTTPException(404, "Recording not found")
+
+    # Snapshot all device configs at recording start
+    result = await db.execute(select(Device))
+    devices = result.scalars().all()
+    recording.device_configs = [
+        {
+            "device_id": d.id,
+            "name": d.name,
+            "type": d.type,
+            "address": d.address,
+            "sample_rate": d.sample_rate,
+            "channels": d.channels,
+            "config": d.config,
+        }
+        for d in devices
+    ]
+
     recording.status = "running"
     recording.started_at = datetime.now(timezone.utc)
     await db.commit()

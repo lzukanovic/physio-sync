@@ -8,5 +8,5 @@ class Base(DeclarativeBase):
 
 
 from api.models.device import Device  # noqa: E402, F401
-from api.models.recording import Recording, RecordingDevice  # noqa: E402, F401
+from api.models.recording import Recording  # noqa: E402, F401
 from api.models.sensor_data import SensorData  # noqa: E402, F401

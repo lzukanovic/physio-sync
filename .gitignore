@@ -1,54 +1,85 @@
-# Python
+# --- Python ----------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.egg-info/
-*.egg
-dist/
+*.pyd
+*.dll
+*.dylib
+
 build/
+dist/
+*.egg-info/
 .eggs/
+wheels/
+MANIFEST
+
 .venv/
 venv/
 env/
+ENV/
 
-# Node.js
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+.python-version
+
+# --- Node / frontend -------------------------------------------------------
 node_modules/
-.next/
-out/
+web/dist/
+web/.vite/
+.eslintcache
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Environment
+# Frontend build output copied into the Python package. Built, never committed.
+src/physiosync/web/
+
+# --- Runtime data ----------------------------------------------------------
+# Recordings live under $PHYSIOSYNC_DATA, outside the repo. These patterns
+# catch the case of someone pointing the data root at the working tree.
+physiosync-data/
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.parquet
+*.jsonl
+*.jsonl.gz
+
+# Fixtures are the exception: the replay adapter and the sync tests depend on
+# them, so they are committed.
+!fixtures/**
+
+# --- Local configuration ---------------------------------------------------
 .env
 .env.local
-.env.*.local
+*.local
 
-# IDE
+# --- Editors and OS --------------------------------------------------------
 .vscode/
+!.vscode/extensions.json
 .idea/
 *.swp
-*.swo
-*~
-*.un~
-
-# OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Docker
-docker-compose.override.yml
+# --- Thesis / scratch ------------------------------------------------------
+scratch/
+notebooks/*.ipynb_checkpoints/
 
-# Recordings / data
-recordings/
-*.csv
-*.hdf5
-
-# Alembic
-*.db
-
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-
-# Tobii Pro SDK (not bundled, must be installed separately)
-tobii_research/
+# ---------------------------------------------------------------------------
+# Vendored third-party binaries. MUST come last: these negations override the
+# *.so / *.pyd / *.dll / *.dylib patterns above.
+# ---------------------------------------------------------------------------
+!src/physiosync/vendor/
+!src/physiosync/vendor/**

@@ -147,7 +147,8 @@ the endpoint rather than building it in memory.
 
 ## Deployment
 
-Frontend is built on the developer machine and committed into the Python package.
+Frontend is built on the developer machine into `src/physiosync/web/` (gitignored) and
+included in the wheel as package data.
 The lab PC gets Python 3.10, a plain venv, and a wheel — conda is the development
 environment, not the deployment one; the lab machine should have as little
 installed on it as possible. Started by a batch file that

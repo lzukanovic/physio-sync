@@ -61,30 +61,43 @@ Written incrementally during capture, finalised by the post-stop job.
 
 ```json
 {
+  "schema_version": 1,
   "uuid": "...",
   "study_id": 3, "participant_id": "P07", "scenario_id": 2, "take_index": 2,
   "app_version": "0.3.0",
-  "created_utc": "2026-09-20T14:02:11.482Z",
+  "created_utc": 1789912931.482,
   "reference_stream": "scaner.telemetry",
   "streams": {
     "tobii.gaze": {
+      "channels": ["gaze2d_x", "gaze2d_y", "..."],
+      "nominal_hz": 100,
       "epoch_utc": 1774477258.390783,
       "epoch_method": "derived:min(local_ts-device_ts)",
       "epoch_uncertainty_s": 0.0008,
       "coverage": [1774477258.39, 1774477562.11],
-      "n_samples": 30412,
-      "nominal_hz": 100
+      "n_samples": 30412
     },
-    "bitalino.A1": {
+    "tobii.imu": { "...": "same device clock; carries the same epoch as tobii.gaze" },
+    "bitalino.main": {
+      "channels": ["A1", "A2", "..."],
+      "nominal_hz": 100,
       "epoch_utc": 1774477264.901,
       "epoch_method": "host:t_start",
-      "coverage": [...], "n_samples": ..., "nominal_hz": 100
+      "epoch_uncertainty_s": null,
+      "coverage": [...],
+      "n_samples": "..."
     }
   },
   "usable_window": [1774477264.901, 1774477560.02],
   "warnings": ["tobii.ntp_not_synchronized"]
 }
 ```
+
+Streams are keyed by stream id, not by channel (ADR 0007). `epoch_utc`, `coverage`
+and `n_samples` are `null` until known: a manifest read mid-capture is valid, and
+the Tobii epoch stays `null` until the post-stop job derives it. All timestamps
+are UTC float64 seconds, `created_utc` included. `participant_id` is the
+participant code, so the manifest is readable without the database.
 
 `usable_window` is the intersection of all stream coverage intervals.
 

@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "physiosync"
+dynamic = ["version"]
+description = "Capture and synchronise data from heterogeneous physiological sensor systems"
+readme = "README.md"
+# Forced, not a preference: PLUX ships no Win64 binary for 3.11/3.12 and g3pylib
+# (lab fork) supports up to 3.12. 3.10 is the only overlap. See CLAUDE.md.
+requires-python = "==3.10.*"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic>=2",
+    "duckdb",
+    "pyarrow",
+    "g3pylib @ git+https://github.com/simp16/glasses3-pylib.git@d25271aa62d92dcbe5420bd83a9c9319e2d980a7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "httpx"]
+
+[tool.setuptools.dynamic]
+version = { attr = "physiosync.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+physiosync = [
+    "store/migrations/*.sql",
+    "web/**",
+    "vendor/PLUX-API-Python3/README.md",
+    "vendor/PLUX-API-Python3/Win64_310/*",
+    "vendor/PLUX-API-Python3/M1_310/*",
+    "vendor/PLUX-API-Python3/MacOS/Intel310/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+# ruff 0.16 also formats Python blocks inside Markdown; the docs are hand-formatted.
+[tool.ruff.format]
+exclude = ["*.md"]

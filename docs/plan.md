@@ -40,7 +40,7 @@ One adapter per session, one branch each. Each is verified with
 `python -m physiosync.devcheck <device>` against real hardware.
 
 **2a — BITalino.** Vendor the PLUX binaries for Python 3.10 only (`Win64_310`
-plus one Mac folder) into `physiosync/adapters/vendor/`. Port the binary loader
+plus one Mac folder) into `src/physiosync/vendor/`. Port the binary loader
 from the MVP with the path and error-handling fixes in `docs/adapters.md`. Three
 timestamp columns. `nSeq` continuity assertion. Settle by measurement whether
 `nSeq` wraps.
@@ -63,7 +63,16 @@ Tobii epoch derivation. Download of the small device-side Tobii files.
 Alignment of every stream onto `reference_stream`. Quality report. Export
 endpoints: Parquet and CSV, synced and raw, full axis and trimmed.
 
-Port the logic from the existing thesis analysis script rather than rewriting it.
+Reference: `../EDA-Bitalino-Tobii-Example-2/make_all_figures.py`. That script
+was run and produced the figures in the thesis, and it is the source of every
+measured number in `docs/adapters.md`. Port its loaders, offset computation and
+rate statistics rather than rewriting them; the quality report is largely the
+same calculations in a different output format.
+
+Ignore the `.ipynb` files and `sync.json` in that directory — generated, never
+run, unknown provenance. The thesis's synchronisation chapter supplies the method
+choice per stream and why each alternative was rejected; `make_all_figures.py`
+supplies the working code.
 
 **Done when:** a replayed fixture produces `synced.parquet` whose alignment
 matches the analysis script's output within tolerance, and both export formats

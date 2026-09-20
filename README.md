@@ -18,12 +18,12 @@ laboratory.
 
 ## Supported sources
 
-| Source | Connection | Notes |
-|---|---|---|
-| BITalino | Bluetooth, PLUX Python SDK | No device clock; timestamps reconstructed from the sample sequence number |
-| Tobii Pro Glasses 3 | Ethernet / WiFi, HTTP + WebSocket via g3pylib | Gaze, IMU, live scene video; NTP-synchronised device clock |
-| SCANeR | Simulator log file (REST planned) | The intended synchronisation reference |
-| Replay | — | Plays back a recorded session as if it were live hardware, for development and testing |
+| Source              | Connection                                    | Notes                                                                                  |
+| ------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| BITalino            | Bluetooth, PLUX Python SDK                    | No device clock; timestamps reconstructed from the sample sequence number              |
+| Tobii Pro Glasses 3 | Ethernet / WiFi, HTTP + WebSocket via g3pylib | Gaze, IMU, live scene video; NTP-synchronised device clock                             |
+| SCANeR              | Simulator log file (REST planned)             | The intended synchronisation reference                                                 |
+| Replay              | —                                             | Plays back a recorded session as if it were live hardware, for development and testing |
 
 Adding a source means implementing one interface. No source depends on any other
 being present.
@@ -48,14 +48,14 @@ and current position.
 
 ## Documentation
 
-| Document | Contents |
-|---|---|
-| [`docs/architecture.md`](docs/architecture.md) | Stack, repository layout, data flow, deployment |
-| [`docs/data-model.md`](docs/data-model.md) | Entities, on-disk format, manifest, quality report |
-| [`docs/adapters.md`](docs/adapters.md) | The source interface and per-device timing rules |
-| [`docs/plan.md`](docs/plan.md) | Build phases and open questions |
-| [`docs/decisions/`](docs/decisions/) | Architecture decision records |
-| [`CLAUDE.md`](CLAUDE.md) | Working conventions and project invariants |
+| Document                                       | Contents                                           |
+| ---------------------------------------------- | -------------------------------------------------- |
+| [`docs/architecture.md`](docs/architecture.md) | Stack, repository layout, data flow, deployment    |
+| [`docs/data-model.md`](docs/data-model.md)     | Entities, on-disk format, manifest, quality report |
+| [`docs/adapters.md`](docs/adapters.md)         | The source interface and per-device timing rules   |
+| [`docs/plan.md`](docs/plan.md)                 | Build phases and open questions                    |
+| [`docs/decisions/`](docs/decisions/)           | Architecture decision records                      |
+| [`CLAUDE.md`](CLAUDE.md)                       | Working conventions and project invariants         |
 
 ## Requirements
 
@@ -68,7 +68,10 @@ and current position.
 
 ## Development
 
+The Python environment is managed with conda.
+
 ```bash
+conda activate mag_env
 pip install -e ".[dev]"
 export PHYSIOSYNC_DATA=~/physiosync-data     # set PHYSIOSYNC_DATA=... on Windows
 python -m physiosync                          # API + UI on http://localhost:8000

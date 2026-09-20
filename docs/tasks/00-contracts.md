@@ -10,16 +10,13 @@ the shapes that later tasks fill in.
 
 ## Scope
 
-1. **Project layout.**
-   ```
-   physiosync/
-     __init__.py  __main__.py  config.py
-     api/         adapters/    capture/   store/   sync/   export/
-     web/                      # built frontend lands here, gitignored
-   web/                        # Vite source
-   fixtures/
-   tests/
-   ```
+1. **Project layout.** As specified in `docs/architecture.md` → Repository
+   layout. `src/` layout, package name `physiosync`. Create the sub-packages
+   (`api`, `adapters`, `capture`, `store`, `sync`, `export`) with `__init__.py`
+   only; later tasks fill them. `src/physiosync/vendor/PLUX-API-Python3/` may
+   already contain binaries — leave them alone, but ensure `pyproject.toml`
+   declares them as package data and `.gitignore` does not exclude `*.dll`,
+   `*.pyd`, or `*.so` under that path.
 
 2. **`pyproject.toml`** pinned to `requires-python = "==3.10.*"`. This is forced,
    not a preference: PLUX ships no Win64 binary for 3.11 or 3.12, and g3pylib
@@ -64,6 +61,12 @@ the shapes that later tasks fill in.
 ## Out of scope
 
 Adapters, capture, charts, DuckDB queries, exports, auth, Docker, CI.
+
+## Environment
+
+Conda, environment `mag_env`, already created. `conda activate mag_env` then
+`pip install -e ".[dev]"`. Do not create a venv and do not change the
+environment's Python version.
 
 ## Done when
 

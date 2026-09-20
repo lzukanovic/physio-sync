@@ -43,21 +43,23 @@ time, sample counts, and anomalies.
 Bluetooth, PLUX Python SDK.
 
 **Vendored binaries.** The PLUX API ships compiled extension modules per OS,
-architecture, and Python minor version. Vendor only the folders for Python 3.10
-on the platforms actually used — `Win64_310` for the lab machine and one Mac
-folder (`M1_310` or `MacOS/Intel310`) for development — into
-`physiosync/adapters/vendor/PLUX-API-Python3/`. Do not vendor the full upstream
-set; folders that cannot run are noise in the repo and in the wheel.
+architecture, and Python minor version, with no PyPI distribution. Vendor only
+the folders for Python 3.10 on the platforms actually used — `Win64_310` for the
+lab machine and one Mac folder (`M1_310` or `MacOS/Intel310`) for development —
+into `src/physiosync/vendor/PLUX-API-Python3/`. Do not vendor the full upstream
+set; folders that cannot run are noise in the repo and in the wheel. Add a
+`README.md` alongside them recording the upstream source and commit.
 
 Windows coverage upstream is 37, 38, 39, 310, 313 only. This is what forces the
 project to Python 3.10 (see `CLAUDE.md`).
 
 **Binary loader.** Port the logic from `bitalino-mvp`, but with two changes.
-Resolve the vendor directory as `Path(__file__).parent / "vendor" /
-"PLUX-API-Python3"` rather than traversing parent directories, so it survives a
-file move. And fail loudly: if the resolved platform folder does not exist,
-raise with the expected path in the message. A bare `ModuleNotFoundError: plux`
-is useless at 9am on a measurement day.
+Resolve the vendor directory from the package root rather than by traversing
+parent directories with `os.pardir`, so it survives a file move — use
+`importlib.resources.files("physiosync") / "vendor" / "PLUX-API-Python3"`. And
+fail loudly: if the resolved platform folder does not exist, raise with the
+expected path and the detected platform in the message. A bare
+`ModuleNotFoundError: plux` is useless at 9am on a measurement day.
 
 **The device has no clock and does not timestamp samples.** Each frame carries a
 sequence number `nSeq` and channel values. Arrival time is unreliable: samples
@@ -66,11 +68,11 @@ a gap. Arrival time reflects packet delivery, not sampling.
 
 Write three columns:
 
-| Column | How | Role |
-|---|---|---|
-| `t` | `t_start + nSeq / f_nominal` | **Canonical.** Computed at capture time so live display and streaming writes work. |
-| `arrival_ts` | `time.time()` on the frame callback | Diagnostic only. Never used for alignment. |
-| `nseq` | as received, unwrapped | Loss detection, and lets end-anchored `t` be derived later. |
+| Column       | How                                 | Role                                                                               |
+| ------------ | ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `t`          | `t_start + nSeq / f_nominal`        | **Canonical.** Computed at capture time so live display and streaming writes work. |
+| `arrival_ts` | `time.time()` on the frame callback | Diagnostic only. Never used for alignment.                                         |
+| `nseq`       | as received, unwrapped              | Loss detection, and lets end-anchored `t` be derived later.                        |
 
 `t_start` is host wall-clock captured immediately before the start command
 returns. It is a host timestamp; there is no device-side anchor and none is
@@ -118,10 +120,10 @@ stream was opened. Verified against `tobii-mvp` output: `DeviceTS` runs 0.80 →
 
 Write both columns, as the MVP already does:
 
-| Column | How |
-|---|---|
+| Column      | How                                                               |
+| ----------- | ----------------------------------------------------------------- |
 | `device_ts` | the stream's own timestamp. **Canonical after epoch correction.** |
-| `local_ts` | `time.time()` on message arrival. Used only to derive the epoch. |
+| `local_ts`  | `time.time()` on message arrival. Used only to derive the epoch.  |
 
 **Epoch derivation (post-stop job).** Take `min(local_ts − device_ts)` over the
 stream, or the median after discarding the first second. Do not use the first
@@ -154,16 +156,34 @@ may contain readings from only some sensors — write nulls, do not drop the row
 
 ## SCANeR
 
-Specifics are not yet available from the lab. The adapter supports three
-acquisition modes behind the same interface; build them in this order.
+Specifics are not yet available from the lab, but a real export exists at
+`../EDA-Bitalino-Tobii-Example-2/datalogger/` and should be inspected before this
+adapter is designed. Its observed shape:
 
-1. **Post-hoc log import.** Nothing captured live. After stopping, read the
-   simulator's log for the run's time window and import it as a stream. Works
-   today with no cooperation needed. Sufficient because synchronisation is
-   offline anyway.
-2. **Log tailing.** Follow the log file as it is written, emit new lines as
-   samples. Adds live display. Beware flush buffering; timing of arrival is not
-   meaningful, only the log's own timestamp column is.
+```
+user_95_scenario_99923_repeat_1/
+├── user_95_scenario_99923_repeat_1.csv        # the telemetry stream
+├── user_95_scenario_99923_repeat_1_info.csv   # run metadata
+├── objectsLookupTable.json                    # id → object name mapping
+└── record/
+    ├── criterionResults.csv
+    └── simulation.result.db                   # SQLite
+```
+
+Note that the folder name already encodes user, scenario, and repeat — the same
+hierarchy as this platform's Participant × Scenario × Take. Whether the platform
+should parse that naming, or write it, is worth deciding rather than defaulting.
+
+The adapter supports three acquisition modes behind the same interface; build
+them in this order.
+
+1. **Post-hoc import.** Nothing captured live. After stopping, read the run's
+   export folder and import the telemetry CSV as a stream. Works today with no
+   cooperation from the lab. Sufficient, because synchronisation is offline
+   anyway.
+2. **Log tailing.** Follow the file as it is written, emit new lines as samples.
+   Adds live display. Beware flush buffering; arrival timing is not meaningful,
+   only the log's own timestamp column is.
 3. **REST.** If and when the lab's extension exists.
 
 **Open question to resolve with the lab before this is built:** what the log's

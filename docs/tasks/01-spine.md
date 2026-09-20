@@ -12,10 +12,17 @@ follows.
 
 ## Scope
 
-1. **Fixture preparation.** `fixtures/sample-session/` holds a trimmed excerpt of
-   the lab's real recording: Tobii gaze, Tobii IMU, SCANeR telemetry, BITalino.
-   Keep it small enough to commit (a couple of minutes). Write
-   `fixtures/README.md` recording its provenance and what was trimmed.
+1. **Fixture preparation.** `fixtures/sample-session/` holds a trimmed excerpt
+   of the real three-device session in
+   `../EDA-Bitalino-Tobii-Example-2/{bitalino,tobii,datalogger}/` (add-dir
+   required). Tobii gaze and IMU, SCANeR telemetry, BITalino. Keep it small
+   enough to commit — a couple of minutes, and not the scene video. Write
+   `fixtures/README.md` recording provenance, the time window kept, and what was
+   dropped. `make_all_figures.py` in that directory already loads all four
+   streams and is verified — reuse its loaders. Ignore the `.ipynb` files there,
+   which were generated and never run. Further format detail is in the Tobii
+   developer guide (`../Tobii/Tobii_Glasses_3_Developer_Guide.pdf`, appendix A)
+   and the two MVPs.
 
 2. **Replay adapter** implementing `SourceAdapter`. Reads the fixture and emits
    batches at realistic wall-clock rates. Must reproduce **BITalino burst

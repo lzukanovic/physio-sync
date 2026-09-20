@@ -148,7 +148,9 @@ the endpoint rather than building it in memory.
 ## Deployment
 
 Frontend is built on the developer machine and committed into the Python package.
-The lab PC gets Python 3.10, a venv, and a wheel. Started by a batch file that
+The lab PC gets Python 3.10, a plain venv, and a wheel — conda is the development
+environment, not the deployment one; the lab machine should have as little
+installed on it as possible. Started by a batch file that
 opens the browser and runs `python -m physiosync`, bound to `127.0.0.1`. Data
 root comes from `PHYSIOSYNC_DATA` and is never inside the install directory, so
 upgrading is `pip install` of a new wheel and nothing else.

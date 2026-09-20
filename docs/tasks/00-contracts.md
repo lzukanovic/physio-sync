@@ -64,7 +64,7 @@ Adapters, capture, charts, DuckDB queries, exports, auth, Docker, CI.
 
 ## Environment
 
-Conda, environment `mag_env`, already created. `conda activate mag_env` then
+Conda, environment `physio_sync_env`, already created. `conda activate physio_sync_env` then
 `pip install -e ".[dev]"`. Do not create a venv and do not change the
 environment's Python version.
 

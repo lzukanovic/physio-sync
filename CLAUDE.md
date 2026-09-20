@@ -69,10 +69,10 @@ These are decisions already made. Do not revisit them without asking.
 
 ## Commands
 
-The Python environment is conda, named `mag_env`. Activate it before anything:
+The Python environment is conda, named `physio_sync_env`. Activate it before anything:
 
 ```
-conda activate mag_env
+conda activate physio_sync_env
 
 pip install -e ".[dev]"              # project itself, into the conda env
 python -m physiosync                 # run the app (serves UI at :8000)

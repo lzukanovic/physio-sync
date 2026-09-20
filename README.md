@@ -71,7 +71,7 @@ and current position.
 The Python environment is managed with conda.
 
 ```bash
-conda activate mag_env
+conda activate physio_sync_env
 pip install -e ".[dev]"
 export PHYSIOSYNC_DATA=~/physiosync-data     # set PHYSIOSYNC_DATA=... on Windows
 python -m physiosync                          # API + UI on http://localhost:8000

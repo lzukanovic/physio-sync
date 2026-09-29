@@ -203,7 +203,35 @@ same interface. This is what makes the whole pipeline developable and testable
 with no hardware attached, and what the sync tests run against.
 
 Supports a speed multiplier (`1.0` for realistic timing, higher for fast tests)
-and a seek offset.
+and a seek offset. Implemented in `adapters/replay.py`; the choices below are
+recorded in `docs/decisions/0009-replay-per-device-rebasing.md`.
+
+**One adapter per device, emitting the live stream ids.** `replay:bitalino` reads
+`bitalino.csv` and emits `bitalino.main`; `replay:tobii` reads `tobii_gaze.csv`
+and `tobii_imu.csv` and emits `tobii.gaze` and `tobii.imu`. File names are fixed;
+`configure({"dir": ...})` points it at another directory of the same shape.
+Downstream code cannot tell replay from live.
+
+**Columns match the live adapters above.** `Sequence` → `nseq`, `Timestamp` →
+`arrival_ts`, `DeviceTS` → `device_ts`, `LocalTS` → `local_ts`, `A1 (RAW) Port1`
+→ `A1`, other headers lowercased (`Gaze2D_X` → `gaze2d_x`). Empty cells are
+`None`. BITalino `t` is computed exactly as live: `t_start + (nseq − nseq_first)/100`.
+
+**Rebasing.** Pacing runs on `Timestamp` for BITalino (never the nominal 100 Hz,
+so the Bluetooth arrival pattern is reproduced) and on `DeviceTS` for Tobii. Each
+device has one origin, the earliest pacing timestamp across its files, so gaze
+and IMU keep their real offset on their shared clock. Relative columns (`nseq`,
+`device_ts`) pass through unchanged. Absolute host columns (`arrival_ts`,
+`local_ts`) are the **recorded** values plus one constant shift per device, so
+they land on the replay's wall clock while keeping burst structure and the
+`local_ts − device_ts` jitter the Tobii epoch derivation depends on. They are not
+`time.time()`, so output is deterministic and identical at every speed.
+
+**Batching.** Each wake-up emits every sample that is due, one batch per stream.
+Batch sizes therefore follow host timer resolution (~1 ms macOS, ~15 ms Windows)
+and speed; arrival timing follows the recording. Out-of-order timestamps are
+emitted as soon as they are due, never reordered or dropped. At end of file the
+adapter goes idle until stopped.
 
 ---
 

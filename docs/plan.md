@@ -113,3 +113,13 @@ sleep and USB selective suspend. Packaging and the lab install procedure.
 - Whether Tobii device clock and host clock agree on the length of a second over
   a long capture — decides whether the epoch is a constant or a linear fit.
   Requires one 10-minute capture.
+- **Host wall-clock corrections during a take.** `arrival_ts`, `local_ts` and
+  `t_start` come from `time.time()`, which NTP may step or slew mid-recording. A
+  step would bias the Tobii epoch (`min(local_ts − device_ts)` picks one side of
+  it) and the `system.time` drift measurement, which uses the host as its ruler.
+  BITalino `t` is exposed only through `t_start`. Nothing currently detects this.
+  Cheapest detection: record `time.time() − time.monotonic()` at start and stop
+  (manifest, flag in the quality report above a threshold); sampling it
+  periodically as its own stream would also say *when*. Suspected once during the
+  Task 01 long replay test (78 ms over 3 min, not reproduced). Decide where it
+  lands — session manager (Task 01) or Phase 6.

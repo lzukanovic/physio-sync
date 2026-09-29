@@ -12,7 +12,7 @@ follows.
 
 ## Environment
 
-`conda activate mag_env`. Do not create a venv and do not change the
+`conda activate physio_sync_env`. Do not create a venv and do not change the
 environment's Python version.
 
 ## Scope
@@ -36,18 +36,21 @@ environment's Python version.
      The burst structure (~3.3 samples arriving ~1.27 ms apart, then ~30 ms of
      silence) is the phenomenon this fixture exists to carry.
    - Pace Tobii from `DeviceTS`.
-   - Rebase every stream onto session t=0, so the three play together despite
+   - Rebase every device onto session t=0 (streams of one device keep their
+     relative offset; ADR 0009), so the three play together despite
      having been recorded separately.
    - Support a speed multiplier (1.0 realistic, higher for fast tests) and a
      seek offset.
    - Accept a directory path, so it can also be pointed at data generated later
      for long runs or fault injection.
-   - Registered as `replay:<stream>`.
+   - Registered as `replay:<device>` (`replay:bitalino`, `replay:tobii`; see ADR 0009).
 
 3. **Session manager.** Start, stop, cancel. Owns adapter lifecycles. Records
    `t_start` and `t_stop` as host wall-clock. Creates the take directory, writes
    the manifest incrementally, finalises it on stop. Cancel deletes the
    directory. Must be safe to stop at any point, including mid-batch.
+   Before planning, read the `docs/plan.md` open item on host wall-clock
+   corrections and decide with the user whether its start/stop check lands here.
 
 4. **Writers.** One gzipped JSONL file per stream under `raw/`. Append-only.
    Flush at least every 2 seconds so a crash costs seconds, not the take. Never

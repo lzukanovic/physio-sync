@@ -115,6 +115,17 @@ sleep and USB selective suspend. Packaging and the lab install procedure.
   resample per channel over that channel's non-null rows. The live feed already
   decimates per channel for the same reason (ADR 0015). The exploratory analysis
   (`fig_imu_spectrum`, the decimation figure) knew this; the platform must too.
+  Settled by the original 7 s capture (`tobii_imu_20260325_231244.csv`): the device
+  samples the magnetometer evenly (101.6 ms median `DeviceTS` gap, none under 5 ms). Arrival batching is a
+  transport artefact and belongs in `local_ts` only (`fixtures/README.md`).
+- **Real Tobii IMU breaks "every timestamp column strictly increasing".**
+  Magnetometer arrives in batches covering ~800 ms of device time, so in arrival
+  order `device_ts` jumps backwards at each batch (8 inversions of 1.35–1.48 s in
+  930 rows in the original capture). The fixture satisfies the invariant only because it was
+  idealised, so the golden-file test's assertion will fail against the real
+  adapter. Decide in Phase 2b: the Tobii adapter sorts each batch by `device_ts`
+  before emitting (clean, delays delivery slightly), or the invariant is relaxed to
+  `device_ts` strictly increasing per stream with `local_ts` allowed to interleave.
 - SCANeR: what its log's timestamp column is, and whether a REST extension exists.
 - Whether `nSeq` wraps under the PLUX SDK (settle in 2a by measurement).
 - Whether Tobii device clock and host clock agree on the length of a second over

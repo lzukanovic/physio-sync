@@ -128,7 +128,7 @@ def test_stop_is_safe_before_start_and_mid_run():
         a = ReplayAdapter("tobii")
         assert (await a.stop()).n_samples == {"tobii.gaze": 0, "tobii.imu": 0}
         await a.start(lambda b: None)
-        await asyncio.sleep(0.5)  # gaze starts 0.21 s after IMU
+        await asyncio.sleep(1.0)  # gaze starts 0.78 s after IMU's first (mag) row
         first = await a.stop()
         again = await a.stop()
         return first, again
@@ -148,7 +148,7 @@ def test_long_full_realtime_replay():
         for a in adapters:
             # Monotonic, the clock pacing runs on: wall-clock corrections must not fail this.
             await a.start(lambda b: got.append((time.monotonic(), b)))
-        await asyncio.sleep(182)  # longest stream (IMU) spans 180.45 s
+        await asyncio.sleep(182)  # longest stream (IMU) spans 180.04 s
         return got, [await a.stop() for a in adapters]
 
     got, infos = asyncio.run(go())

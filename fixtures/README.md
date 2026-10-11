@@ -16,7 +16,7 @@ imitate. 180 seconds per stream.
 | ---------------- | ----- | -------- | -------- | ------------------------------------------------------------- |
 | `bitalino.csv`   | 18000 | 179.94 s | 100.0 Hz | `Sequence` 0–17999 unbroken; `Timestamp` is host arrival time |
 | `tobii_gaze.csv` | 17878 | 179.09 s | 99.8 Hz  | `DeviceTS` relative to stream open, `LocalTS` arrival         |
-| `tobii_imu.csv`  | 23481 | 180.37 s | 130.2 Hz | magnetometer at 9.8 Hz; other rows leave those columns empty  |
+| `tobii_imu.csv`  | 23481 | 180.04 s | 130.4 Hz | magnetometer at 9.85 Hz, every gap 101.6 ms; other rows leave those columns empty |
 
 ### Provenance
 
@@ -33,7 +33,7 @@ Timing characteristics were preserved and verified after extension:
 - Tobii gaze and IMU are strictly monotonic in `DeviceTS`, with the derived
   epoch (`min(LocalTS − DeviceTS)`) stable to ~117 ms across the stream.
 
-One defect was corrected during preparation. The extension gave the IMU
+One defect was corrected during preparation, in three attempts. The extension gave the IMU
 magnetometer its own clock, running ~1.4 s behind the accelerometer and
 gyroscope, and interleaved those rows by position rather than by time, producing
 333 rows whose `DeviceTS` went backwards.
@@ -44,11 +44,35 @@ broke `LocalTS`: every accel/gyro row sits at or above that minimum offset, so
 the rebuilt magnetometer rows landed systematically early and 162 `LocalTS`
 inversions appeared, up to 106 ms.
 
-The file here uses the second correction. `LocalTS` is taken as the arrival
-order, which the source already had monotonic, and each magnetometer row's
-`DeviceTS` is interpolated onto the `DeviceTS`-versus-`LocalTS` curve defined by
-the surrounding accel/gyro rows. Both columns are now strictly increasing. Epoch
-spread is 117 ms, matching the gaze stream.
+A second correction took `LocalTS` as the arrival order, which the source
+already had monotonic, and interpolated each magnetometer row's `DeviceTS` onto
+the `DeviceTS`-versus-`LocalTS` curve of the surrounding accel/gyro rows. Both
+columns became strictly increasing, but mapping the device clock from arrival
+time baked the arrival batching into it: magnetometer `DeviceTS` came out as
+bursts of ~8–10 rows a few ms apart every ~0.92 s. Found when the live view drew
+the magnetometer as isolated dots (ADR 0015).
+
+Measured against the original 7 s capture
+(`../Tobii/tobii-mvp/recordings/tobii_imu_20260325_231244.csv`), that is wrong.
+There, the 64 magnetometer rows have `DeviceTS` gaps of 101.6 ms median, range
+93.8–109.4 ms, none under 5 ms: the device samples the magnetometer evenly at
+10 Hz. It is `LocalTS` that bursts (55 of 63 arrival gaps under 5 ms, the rest
+0.70–0.92 s), which is batched WebSocket delivery, a transport artefact
+belonging in `LocalTS` only.
+
+The file here uses the third correction. Magnetometer `DeviceTS` is on a regular
+101.6 ms grid, and its `LocalTS` is interpolated from the accel/gyro
+`DeviceTS`-versus-`LocalTS` curve. Both columns are strictly increasing. Epoch
+spread is 117 ms, matching the gaze stream. As in the original, the first IMU
+row is a magnetometer sample at `DeviceTS` 0.123 s, 0.57 s before the first
+accelerometer row, so after per-device rebasing (ADR 0009) gaze starts 0.78 s
+after the IMU, not the 0.21 s ADR 0009 quotes for the earlier file.
+
+**That is idealised.** Real Tobii IMU data cannot have both columns strictly
+increasing. Each magnetometer batch covers ~800 ms of device time, so rows
+written in arrival order make `DeviceTS` jump backwards at every batch: the
+original 7 s capture has 8 such inversions in 930 rows, each 1.35–1.48 s. See
+`docs/plan.md`.
 
 **Sample values repeat on a cycle.** Fine for timing and plumbing; nothing about
 signal content should be concluded from this fixture.

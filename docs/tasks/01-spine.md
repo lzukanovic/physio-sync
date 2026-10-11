@@ -67,8 +67,9 @@ environment's Python version.
    not backlog.
 
 7. **Minimal UI.** One page: start/stop/cancel, elapsed timer, an unambiguous
-   recording indicator, one scrolling live chart showing a 20-second window, a
-   sample counter per stream, and the decimator's drop count. Function over
+   recording indicator, a scrolling 20-second live view with **one pane per
+   stream, each on its own time axis** (the live view does not align streams;
+   ADR 0013), a sample counter per stream, and the decimator's drop count. Function over
    appearance — the designed screens come in Phase 4.
 
 8. **Golden-file test.** Run a replay session at high speed and assert:
@@ -106,15 +107,13 @@ lands on disk, the decimator is wired in series. (Not byte-identical: flush
 points and `t_start` vary per run; see ADR 0010.)
 
 Content alone is necessary but not sufficient: a decimator wired in series still
-writes identical content, just later. So also time it. Run the same session at
-high speed twice — no client, then a deliberately slow one — and measure the wall
-time from start until the writer's sample counts reach the fixture totals. That
-must not grow by more than ~10%; in-series wiring fails this dramatically, not
-marginally. It has to be high speed: at 1× the replay has slack and catches up
-after a stall by emitting everything due at once, so a blocked sink is hidden.
-At high speed there is no slack, and any time the sink spends blocked adds
-directly to the run. The content comparison proves nothing was lost; the timing
-comparison is the half that tests the topology.
+writes identical content, just later. So also time the sink: with a client
+stalled 0.5 s per frame, the max duration of `live.put` must stay well under a
+millisecond. (This brief originally said to compare whole-run wall time at high
+speed. That cannot work against the replay adapter at any speed: it catches up
+after a stall by emitting one bigger batch, so the run does not get longer. See
+ADR 0013. Against real hardware, which has no catch-up, the wall-time check is
+meaningful and belongs in Phase 2a.)
 
 **Out-of-order samples.** Every stream's timestamps are strictly increasing in
 the fixture and must be strictly increasing in what the writers emit. Assert it

@@ -43,7 +43,8 @@ One adapter per session, one branch each. Each is verified with
 plus one Mac folder) into `src/physiosync/vendor/`. Port the binary loader
 from the MVP with the path and error-handling fixes in `docs/adapters.md`. Three
 timestamp columns. `nSeq` continuity assertion. Settle by measurement whether
-`nSeq` wraps.
+`nSeq` wraps. Re-run the live-feed topology check by wall time against the real
+device, where a stalled sink cannot be hidden by catch-up (ADR 0013).
 
 **2b — Tobii.** Via g3pylib. Discovery (Zeroconf, mDNS, AP address, manual). Gaze
 and IMU, storing `device_ts` and `local_ts`. NTP check and warning tag.

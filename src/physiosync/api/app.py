@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI
+from fastapi import Body, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 from starlette.staticfiles import StaticFiles
 
 from physiosync import __version__
+from physiosync.capture.live import LiveFeed
+from physiosync.capture.session import SessionError, SessionManager
 from physiosync.config import Settings
 from physiosync.store import db
 
@@ -37,6 +42,9 @@ class SPAStaticFiles(StaticFiles):
 
 
 def create_app(settings: Settings, web_dir: Path = DEFAULT_WEB_DIR) -> FastAPI:
+    live = LiveFeed()
+    session = SessionManager(settings.data_root, settings.reference_stream, live=live)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         conn = db.connect(settings.db_path)
@@ -44,7 +52,15 @@ def create_app(settings: Settings, web_dir: Path = DEFAULT_WEB_DIR) -> FastAPI:
             db.migrate(conn)
         finally:
             conn.close()
-        yield
+        feed = asyncio.create_task(live.run())
+        try:
+            yield
+        finally:
+            if session.recording:  # shutting down mid-take: finalise it, do not abandon it
+                await session.stop()
+            feed.cancel()
+            with suppress(asyncio.CancelledError):
+                await feed
 
     app = FastAPI(title="physio-sync", version=__version__, lifespan=lifespan)
 
@@ -61,6 +77,42 @@ def create_app(settings: Settings, web_dir: Path = DEFAULT_WEB_DIR) -> FastAPI:
             log.exception("health: database unreachable")
             db_ok = False
         return {"version": __version__, "data_root": str(settings.data_root), "db_ok": db_ok}
+
+    @app.exception_handler(SessionError)
+    async def session_error(request, e: SessionError):
+        return JSONResponse({"detail": str(e)}, status_code=409)
+
+    @app.post("/api/session/start")
+    async def session_start(configs: Annotated[dict[str, dict], Body()]) -> dict:
+        """Body: adapter id -> its configure dict, e.g. ``{"replay:bitalino": {"speed": 1}}``."""
+        try:
+            take = await session.start(configs)
+        except ValueError as e:  # adapter refused its configuration
+            return JSONResponse({"detail": str(e)}, status_code=400)
+        return {"take": take.name}
+
+    @app.post("/api/session/stop")
+    async def session_stop() -> dict:
+        return (await session.stop()).model_dump()
+
+    @app.post("/api/session/cancel")
+    async def session_cancel() -> dict:
+        await session.cancel()
+        return {}
+
+    @app.websocket("/ws/live")
+    async def ws_live(ws: WebSocket) -> None:
+        """Decimated frames at 10 Hz. Lossy: a slow client skips frames; a new one gets no backlog."""
+        await ws.accept()
+        client = live.subscribe()
+        try:
+            while True:
+                frame = await client.next()
+                await ws.send_json({**frame, "skipped": client.skipped})
+        except WebSocketDisconnect:
+            pass
+        finally:
+            live.unsubscribe(client)
 
     # Must stay last: a mount at "/" swallows everything registered after it.
     if (web_dir / "index.html").is_file():

@@ -15,7 +15,8 @@ from pathlib import Path
 
 from physiosync import __version__
 from physiosync.adapters import ADAPTERS
-from physiosync.adapters.base import SourceAdapter, StopInfo
+from physiosync.adapters.base import SampleBatch, SourceAdapter, StopInfo
+from physiosync.capture.live import LiveFeed
 from physiosync.capture.writer import Writer
 from physiosync.store.manifest import Manifest, StreamInfo, write_manifest
 
@@ -27,10 +28,17 @@ class SessionError(Exception):
 
 
 class SessionManager:
-    def __init__(self, data_root: Path, reference_stream: str, adapters=ADAPTERS) -> None:
+    def __init__(
+        self,
+        data_root: Path,
+        reference_stream: str,
+        adapters=ADAPTERS,
+        live: LiveFeed | None = None,
+    ) -> None:
         self.takes_dir = Path(data_root) / "takes"
         self._reference = reference_stream
         self._factories = adapters
+        self.live = live or LiveFeed()
         self._lock = asyncio.Lock()
         self._clear()
 
@@ -80,14 +88,22 @@ class SessionManager:
                     warnings=warnings,
                 )
                 self._write()
-                self.writer = Writer(
-                    self.take_dir / "raw", [s for a in adapters for s in a.streams]
-                )
+                specs = [s for a in adapters for s in a.streams]
+                self.writer = Writer(self.take_dir / "raw", specs)
+                self.live.reset(specs)
+                writer, live = self.writer, self.live
+
+                def sink(batch: SampleBatch) -> None:
+                    # Fan-out, not a chain: the live feed never sits on the path to disk
+                    # (ADR 0013). Both calls only enqueue; neither raises.
+                    writer.put(batch)
+                    live.put(batch)
+
                 wall, mono = time.time(), time.monotonic()
                 self.manifest.started_utc = wall
                 self.manifest.wall_monotonic_delta = (wall - mono, None)
                 for a in adapters:
-                    epochs = await a.start(self.writer.put)
+                    epochs = await a.start(sink)
                     self._adapters.append(a)
                     for sid, epoch in epochs.epochs.items():
                         self.manifest.streams[sid].epoch_utc = epoch
@@ -150,6 +166,7 @@ class SessionManager:
                 self.manifest.warnings.append(f"capture.stop_failed:{a.id}")
             else:
                 infos.append(r)
+        self.live.end()
         if self.writer is not None:
             await asyncio.to_thread(self.writer.close)
         return infos

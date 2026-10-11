@@ -5,13 +5,19 @@ import { useEffect, useRef, useState } from "react";
 
 type Value = number | null;
 
+/** One stream in a frame: its own time column and channels, as its StreamSpec declares them. */
+interface StreamFrame {
+  time_column: string;
+  columns: Record<string, Value[]>;
+}
+
 interface Frame {
   t_utc: number;
   recording: boolean;
   t_start: number | null;
   received: Record<string, number>;
   dropped: Record<string, number>;
-  streams: Record<string, Record<string, Value[]>>;
+  streams: Record<string, StreamFrame>;
   skipped: number;
 }
 
@@ -26,29 +32,23 @@ interface StopResult {
 
 const WINDOW_S = 20;
 const GAP_S = 0.5; // per channel: >= 50 ms decimated, 100 ms for 10 Hz mag; more is a gap (reconnect, dropout, blink)
-const TIMING = new Set(["t", "arrival_ts", "nseq", "device_ts", "local_ts"]);
 // Axis meaning by time column. These clocks are not comparable to each other (ADR 0013).
 const AXES: Record<string, { label: string; clock: boolean }> = {
   t: { label: "t — host wall-clock, UTC", clock: true },
   device_ts: { label: "device_ts — seconds since stream open", clock: false },
 };
 
-type History = Record<string, Record<string, Value[]>>;
+type History = Record<string, StreamFrame>;
 
-const timeColumn = (cols: Record<string, Value[]>) => ("t" in cols ? "t" : "device_ts");
-
-/** Append a frame's samples and keep the newest WINDOW_S of each stream's own clock. */
+/** Append a frame's samples and keep the newest WINDOW_S of each stream's own clock.
+ * History resets only on a new take (t_start), never on a backwards timestamp: real Tobii IMU
+ * device_ts goes backwards at every magnetometer batch (docs/plan.md), which must not blank a pane. */
 function append(history: History, frame: Frame) {
-  for (const [sid, cols] of Object.entries(frame.streams)) {
-    const tc = timeColumn(cols);
-    const ts = cols[tc] ?? [];
+  for (const [sid, { time_column: tc, columns }] of Object.entries(frame.streams)) {
+    const ts = columns[tc] ?? [];
     if (!ts.length) continue;
-    let h = history[sid];
-    const last = h?.[tc]?.at(-1);
-    if (!h || (last != null && (ts[0] as number) <= last)) {
-      h = history[sid] = Object.fromEntries(Object.keys(cols).map((c) => [c, []]));
-    }
-    for (const [c, vs] of Object.entries(cols)) (h[c] ??= []).push(...vs);
+    const h = (history[sid] ??= { time_column: tc, columns: {} }).columns;
+    for (const [c, vs] of Object.entries(columns)) (h[c] ??= []).push(...vs);
     const newest = ts.at(-1) as number;
     const cut = h[tc].findIndex((t) => t != null && t >= newest - WINDOW_S);
     if (cut > 0) for (const c in h) h[c].splice(0, cut);
@@ -61,19 +61,19 @@ function fmtTime(t: number, clock: boolean) {
 
 function Pane({
   sid,
-  cols,
+  stream,
   received,
   dropped,
 }: {
   sid: string;
-  cols: Record<string, Value[]>;
+  stream: StreamFrame;
   received: number;
   dropped: number;
 }) {
-  const channels = Object.keys(cols).filter((c) => !TIMING.has(c));
+  const { time_column: tc, columns: cols } = stream;
+  const channels = Object.keys(cols).filter((c) => c !== tc);
   const [chosen, setChosen] = useState<string | null>(null);
   const channel = chosen && channels.includes(chosen) ? chosen : channels[0];
-  const tc = timeColumn(cols);
   const axis = AXES[tc] ?? { label: tc, clock: false };
   const ts = cols[tc] as number[];
   const vs = cols[channel] ?? [];
@@ -301,11 +301,11 @@ export default function Capture() {
       {frame && frame.skipped > 0 && (
         <p className="text-sm text-slate-600">This browser skipped {frame.skipped} frames (display only).</p>
       )}
-      {Object.entries(history.current).map(([sid, cols]) => (
+      {Object.entries(history.current).map(([sid, stream]) => (
         <Pane
           key={sid}
           sid={sid}
-          cols={cols}
+          stream={stream}
           received={frame?.received?.[sid] ?? 0}
           dropped={frame?.dropped?.[sid] ?? 0}
         />

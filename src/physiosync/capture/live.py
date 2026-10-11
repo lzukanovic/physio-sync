@@ -127,7 +127,13 @@ class LiveFeed:
             "t_start": self.t_start,
             "received": received,
             "dropped": dropped,
-            "streams": {sid: self._decimate(specs[sid], b) for sid, b in bufs.items()},
+            "streams": {
+                sid: {
+                    "time_column": specs[sid].time_column,
+                    "columns": self._decimate(specs[sid], b),
+                }
+                for sid, b in bufs.items()
+            },
         }
         for c in self.clients:
             c.offer(frame)
@@ -144,9 +150,10 @@ class LiveFeed:
         Per channel, not per row (ADR 0015): Tobii IMU interleaves ~10 Hz magnetometer rows with
         ~120 Hz accel/gyro rows, each null in the other's columns, and a per-row rule keeps almost
         none of the sparse ones. A stream with no declared channels decimates on its time column.
+        Emits only the time column and the channels: other timing columns are storage-path only.
         """
-        out: dict[str, list] = {c: [] for c in spec.columns}
         chans = spec.channels or (spec.time_column,)
+        out: dict[str, list] = {c: [] for c in (spec.time_column, *spec.channels)}
         last = self._last_kept.setdefault(spec.id, {})
         for b in batches:
             for i, t in enumerate(b.columns[spec.time_column]):
@@ -154,8 +161,8 @@ class LiveFeed:
                 if any(t - last.get(c, float("-inf")) >= 1 / MAX_HZ for c in present):
                     for c in present:
                         last[c] = t
-                    for c in spec.columns:
-                        out[c].append(b.columns[c][i])
+                    for c, col in out.items():
+                        col.append(b.columns[c][i])
         return out
 
 

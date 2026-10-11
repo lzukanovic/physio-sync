@@ -26,7 +26,13 @@ def test_buffer_is_bounded_in_stream_time_and_drops_are_cumulative():
     for b in batches:
         feed.put(b)
     frame = feed.tick()
-    assert frame["streams"]["s.x"]["t"] == [8.0, 8.5, 9.0, 9.5, 10.0]  # last WINDOW_S only
+    assert frame["streams"]["s.x"]["columns"]["t"] == [
+        8.0,
+        8.5,
+        9.0,
+        9.5,
+        10.0,
+    ]  # last WINDOW_S only
     assert frame["dropped"] == {"s.x": 16}
     assert frame["received"] == {"s.x": 21}  # true count, not the decimated one
     assert batches == before  # the writer serialises these same objects
@@ -44,9 +50,9 @@ def test_decimates_to_max_hz_by_the_streams_own_clock():
     feed.reset([SPEC])
     t = [i / 100 for i in range(150)]  # 1.5 s at 100 Hz: fits the window, nothing dropped
     feed.put(SampleBatch("s.x", {"t": t[:75], "v": list(range(75))}))
-    kept = feed.tick()["streams"]["s.x"]["t"]
+    kept = feed.tick()["streams"]["s.x"]["columns"]["t"]
     feed.put(SampleBatch("s.x", {"t": t[75:], "v": list(range(75, 150))}))
-    kept += feed.tick()["streams"]["s.x"]["t"]  # spacing holds across ticks
+    kept += feed.tick()["streams"]["s.x"]["columns"]["t"]  # spacing holds across ticks
     assert 1.5 * MAX_HZ * 0.8 <= len(kept) <= 1.5 * MAX_HZ
     assert all(b - a >= 1 / MAX_HZ - 1e-9 for a, b in pairwise(kept))
     assert feed.dropped == {"s.x": 0}
@@ -64,7 +70,7 @@ def test_sparse_channel_in_mixed_rate_stream_survives_decimation():
     feed.reset([imu])
     t, acc, mag = (list(c) for c in zip(*rows))
     feed.put(SampleBatch("s.imu", {"t": t, "acc": acc, "mag": mag}))
-    out = feed.tick()["streams"]["s.imu"]
+    out = feed.tick()["streams"]["s.imu"]["columns"]
     assert [m for m in out["mag"] if m is not None] == [float(i) for i in range(15)]  # all of 10 Hz
     acc_t = [t for t, a in zip(out["t"], out["acc"]) if a is not None]
     assert 1.5 * MAX_HZ * 0.8 <= len(acc_t) <= 1.5 * MAX_HZ + 1
@@ -195,9 +201,13 @@ def test_ws_live_and_session_routes(client, tmp_path):
         while time.monotonic() < deadline:
             frame = ws.receive_json()
             streams = frame["streams"].values()
-            if frame["recording"] and all(next(iter(s.values())) for s in streams):
+            if frame["recording"] and all(s["columns"][s["time_column"]] for s in streams):
                 break
         assert set(frame["streams"]) == set(FILES)
+        # StreamSpec is the source of truth: its time column and channels, no storage-path columns.
+        bit, imu = frame["streams"]["bitalino.main"], frame["streams"]["tobii.imu"]
+        assert bit["time_column"] == "t" and list(bit["columns"]) == ["t", "A1", "A2"]
+        assert imu["time_column"] == "device_ts" and "local_ts" not in imu["columns"]
         assert frame["dropped"] == {sid: 0 for sid in FILES}  # 5x fits the window
         received = frame["received"]
     # Browser gone; stop must still finalise.

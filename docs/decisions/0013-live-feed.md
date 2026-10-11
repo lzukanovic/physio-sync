@@ -74,3 +74,9 @@ counts are asserted alongside.
 A real device has no catch-up: BITalino produces at 100 Hz whatever happens
 downstream, so there a stalled sink would delay the writers and show in wall
 time. Re-run the wall-time comparison against real hardware in Phase 2a.
+
+**Note (2026-10-11): `reset(specs)` / `end()` are a deliberate pair.** Every take starts
+with `reset` and ends with `end`, so the feed's take lifecycle reads as one start/stop
+pair in the session manager. `end()` is one assignment with one caller and simplicity
+reviews keep flagging it for inlining; it was declined in two reviews for this reason.
+Keep it unless the pair itself changes.

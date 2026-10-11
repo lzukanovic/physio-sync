@@ -27,3 +27,17 @@ that was the last thing heard before the connection dropped. Phase 4 inherits th
 **Consequences.** The frame grows by two small dicts' worth. Nothing on the storage path
 changes. The capture page is not load-bearing: a take is finalised by `POST
 /api/session/stop` from anywhere, or on shutdown, with no browser open.
+
+**Amendment (2026-10-11): each stream in a frame is `{time_column, columns}`.** The frame
+named its columns but not which one was time or which were channels, so the page
+hardcoded both (`"t" in cols ? "t" : "device_ts"`, a list of timing column names copied
+from the replay adapter). That would drift the first time a Phase 2 adapter declares
+different channels. The live feed now sends `time_column` from the `StreamSpec`, and
+`columns` holds only that column and `spec.channels`. `nseq`, `arrival_ts` and `local_ts`
+no longer go over the wire: they are storage-path data and nothing on the display path
+reads them. `StreamSpec` is the single source of truth for both layers.
+
+The page resets a stream's history only on a new take (`t_start` changes), never on a
+timestamp going backwards. Real Tobii IMU `device_ts` goes backwards at every
+magnetometer batch (`docs/plan.md`); resetting on that would blank the IMU pane every
+~0.8 s.

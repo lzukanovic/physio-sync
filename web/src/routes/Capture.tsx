@@ -25,7 +25,7 @@ interface StopResult {
 }
 
 const WINDOW_S = 20;
-const GAP_S = 0.5; // decimated spacing is ~50 ms; more than this is a gap (reconnect, dropout)
+const GAP_S = 0.5; // per channel: >= 50 ms decimated, 100 ms for 10 Hz mag; more is a gap (reconnect, dropout, blink)
 const TIMING = new Set(["t", "arrival_ts", "nseq", "device_ts", "local_ts"]);
 // Axis meaning by time column. These clocks are not comparable to each other (ADR 0013).
 const AXES: Record<string, { label: string; clock: boolean }> = {
@@ -86,17 +86,27 @@ function Pane({
   const lo = finite.length ? Math.min(...finite) : 0;
   const hi = finite.length ? Math.max(...finite) : 1;
   const span = hi - lo || 1;
-  let d = "";
-  let pen = false;
+  // Rows without this channel are skipped, not breaks: mixed-rate streams (Tobii IMU) interleave
+  // channels row by row. A break is a time gap since this channel's last value. Points with no
+  // neighbour are drawn as dots so a sparse channel never renders as nothing.
+  const segs: [number, number][][] = [];
+  let prev = -Infinity;
   ts.forEach((t, i) => {
     const v = vs[i];
-    if (v == null || !Number.isFinite(v)) return void (pen = false);
-    if (i > 0 && t - ts[i - 1] > GAP_S) pen = false;
-    const x = ((t - x0) / WINDOW_S) * W;
-    const y = H - ((v - lo) / span) * H;
-    d += `${pen ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-    pen = true;
+    if (v == null || !Number.isFinite(v)) return;
+    if (t - prev > GAP_S) segs.push([]);
+    segs[segs.length - 1].push([((t - x0) / WINDOW_S) * W, H - ((v - lo) / span) * H]);
+    prev = t;
   });
+  const xy = ([x, y]: [number, number]) => `${x.toFixed(1)} ${y.toFixed(1)}`;
+  const line = segs
+    .filter((s) => s.length > 1)
+    .map((s) => "M" + s.map(xy).join("L"))
+    .join("");
+  const dots = segs
+    .filter((s) => s.length === 1)
+    .map((s) => `M${xy(s[0])}h0`) // zero-length subpath + round cap = a dot
+    .join("");
 
   return (
     <section className="rounded border border-slate-200 bg-white p-3">
@@ -130,7 +140,14 @@ function Pane({
           role="img"
           aria-label={`${sid} ${channel}, last ${WINDOW_S} seconds`}
         >
-          <path d={d} fill="none" stroke="#1d4ed8" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          <path d={line} fill="none" stroke="#1d4ed8" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          <path
+            d={dots}
+            stroke="#1d4ed8"
+            strokeWidth={5}
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
         </svg>
       </div>
       <div className="ml-18 flex justify-between text-xs text-slate-500 tabular-nums">

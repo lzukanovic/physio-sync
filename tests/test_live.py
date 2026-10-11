@@ -52,6 +52,25 @@ def test_decimates_to_max_hz_by_the_streams_own_clock():
     assert feed.dropped == {"s.x": 0}
 
 
+def test_sparse_channel_in_mixed_rate_stream_survives_decimation():
+    """Tobii IMU shape: ~120 Hz accel rows and ~10 Hz mag rows, each null in the other's column."""
+    imu = StreamSpec(
+        id="s.imu", columns=("t", "acc", "mag"), channels=("acc", "mag"), time_column="t"
+    )
+    rows = [(i / 120, float(i), None) for i in range(180)]  # 1.5 s: fits the window
+    rows += [(i / 10 + 0.001, None, float(i)) for i in range(15)]
+    rows.sort()
+    feed = LiveFeed()
+    feed.reset([imu])
+    t, acc, mag = (list(c) for c in zip(*rows))
+    feed.put(SampleBatch("s.imu", {"t": t, "acc": acc, "mag": mag}))
+    out = feed.tick()["streams"]["s.imu"]
+    assert [m for m in out["mag"] if m is not None] == [float(i) for i in range(15)]  # all of 10 Hz
+    acc_t = [t for t, a in zip(out["t"], out["acc"]) if a is not None]
+    assert 1.5 * MAX_HZ * 0.8 <= len(acc_t) <= 1.5 * MAX_HZ + 1
+    assert all(b - a >= 1 / MAX_HZ - 1e-9 for a, b in pairwise(acc_t))
+
+
 def test_slow_client_is_bounded_and_new_client_gets_no_backlog():
     async def go():
         feed = LiveFeed()

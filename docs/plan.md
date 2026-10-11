@@ -109,6 +109,12 @@ sleep and USB selective suspend. Packaging and the lab install procedure.
   depends on `simp16/glasses3-pylib` at a single commit — one person's account,
   and the entire Tobii path rests on it. Same commit, own remote. Do before the
   first real measurement session.
+- **Tobii IMU is mixed-rate with nulls** (accel/gyro ~120 Hz, magnetometer ~10 Hz,
+  interleaved row by row, each null in the other's columns). Phase 3 resampling onto
+  the reference axis cannot treat it as one uniform stream: split it per sensor, or
+  resample per channel over that channel's non-null rows. The live feed already
+  decimates per channel for the same reason (ADR 0015). The exploratory analysis
+  (`fig_imu_spectrum`, the decimation figure) knew this; the platform must too.
 - SCANeR: what its log's timestamp column is, and whether a REST extension exists.
 - Whether `nSeq` wraps under the PLUX SDK (settle in 2a by measurement).
 - Whether Tobii device clock and host clock agree on the length of a second over

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import threading
 import time
 from collections import deque
@@ -56,7 +57,8 @@ class LiveFeed:
         self._lock = threading.Lock()  # put() may run on a vendor SDK thread (ADR 0006)
         self._specs: dict[str, StreamSpec] = {}
         self._buf: dict[str, deque[SampleBatch]] = {}
-        self._last_kept: dict[str, float] = {}
+        self._last_kept: dict[str, dict[str, float]] = {}
+        """Per stream, per channel: time of the last kept sample carrying that channel."""
         self.dropped: dict[str, int] = {}
         """Samples shed from the input buffers since the take started. Display path only."""
         self.received: dict[str, int] = {}
@@ -137,14 +139,26 @@ class LiveFeed:
             self.tick()
 
     def _decimate(self, spec: StreamSpec, batches: deque[SampleBatch]) -> dict[str, list]:
-        """Keep a sample once its own clock is >= 1/MAX_HZ past the last kept one."""
+        """Keep a row if any channel it carries is >= 1/MAX_HZ past that channel's last kept value.
+
+        Per channel, not per row (ADR 0015): Tobii IMU interleaves ~10 Hz magnetometer rows with
+        ~120 Hz accel/gyro rows, each null in the other's columns, and a per-row rule keeps almost
+        none of the sparse ones. A stream with no declared channels decimates on its time column.
+        """
         out: dict[str, list] = {c: [] for c in spec.columns}
-        last = self._last_kept.get(spec.id, float("-inf"))
+        chans = spec.channels or (spec.time_column,)
+        last = self._last_kept.setdefault(spec.id, {})
         for b in batches:
             for i, t in enumerate(b.columns[spec.time_column]):
-                if t - last >= 1 / MAX_HZ:
-                    last = t
+                present = [c for c in chans if _present(b.columns[c][i])]
+                if any(t - last.get(c, float("-inf")) >= 1 / MAX_HZ for c in present):
+                    for c in present:
+                        last[c] = t
                     for c in spec.columns:
                         out[c].append(b.columns[c][i])
-        self._last_kept[spec.id] = last
         return out
+
+
+def _present(v) -> bool:
+    """None or NaN: this row does not carry the channel."""
+    return v is not None and not (isinstance(v, float) and math.isnan(v))

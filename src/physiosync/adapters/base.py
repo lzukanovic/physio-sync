@@ -23,6 +23,10 @@ class StreamSpec:
     """Signal columns among ``columns`` (e.g. ``A1``..``A6``); the rest is timing/diagnostics."""
     nominal_hz: float | None = None
     """Nominal rate; ``None`` if irregular (SCANeR)."""
+    time_column: str | None = None
+    """The stream's own time base (``t``, ``device_ts``); gives the manifest's ``coverage_local``."""
+    time_is_utc: bool = False
+    """``time_column`` is already UTC seconds (BITalino ``t``); else it needs the stream epoch."""
 
 
 @dataclass(frozen=True, slots=True)

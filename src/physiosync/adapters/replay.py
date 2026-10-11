@@ -76,12 +76,14 @@ class _Stream:
     def __init__(self, stream_id: str, cols: dict[str, list], pace_col: str) -> None:
         self.cols = cols
         self.pace = cols[pace_col]
-        timing = ("t", *cols) if stream_id == "bitalino.main" else tuple(cols)
+        bitalino = stream_id == "bitalino.main"
         self.spec = StreamSpec(
             id=stream_id,
-            columns=timing,
+            columns=("t", *cols) if bitalino else tuple(cols),
             channels=tuple(c for c in cols if c not in TIMING),
-            nominal_hz=BITALINO_HZ if stream_id == "bitalino.main" else 100.0,
+            nominal_hz=BITALINO_HZ if bitalino else 100.0,
+            time_column="t" if bitalino else "device_ts",
+            time_is_utc=bitalino,
         )
         self.first = 0  # first index emitted (after seek)
         self.pos = 0  # next index to emit

@@ -121,5 +121,7 @@ sleep and USB selective suspend. Packaging and the lab install procedure.
   Cheapest detection: record `time.time() − time.monotonic()` at start and stop
   (manifest, flag in the quality report above a threshold); sampling it
   periodically as its own stream would also say *when*. Suspected once during the
-  Task 01 long replay test (78 ms over 3 min, not reproduced). Decide where it
-  lands — session manager (Task 01) or Phase 6.
+  Task 01 long replay test (78 ms over 3 min, not reproduced). **Partly
+  resolved:** the session manager records `wall_monotonic_delta` at start and
+  stop (ADR 0012); the quality report flags `stop − start` (Phase 3); periodic
+  sampling only if Phase 6 needs to know *when*.

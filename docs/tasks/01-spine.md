@@ -98,9 +98,23 @@ management, playback, styling.
 **The decimator wired in series with the writers.** This is the most likely
 failure: if a slow WebSocket client can stall disk writes, the design is wrong
 even though everything appears to work. The decimator must be an independent
-consumer with its own bounded queue. Verify explicitly — run a session with no
-client connected, and again with a deliberately slow client, and confirm the
-JSONL is byte-identical.
+consumer with its own bounded queue. Verify explicitly: run a session with no
+client connected, and again with a deliberately slow client. Decompress both
+takes and compare sample content and ordering per stream, allowing for the
+per-run `t_start` shift. They must be identical — if a slow client changes what
+lands on disk, the decimator is wired in series. (Not byte-identical: flush
+points and `t_start` vary per run; see ADR 0010.)
+
+Content alone is necessary but not sufficient: a decimator wired in series still
+writes identical content, just later. So also time it. Run the same session at
+high speed twice — no client, then a deliberately slow one — and measure the wall
+time from start until the writer's sample counts reach the fixture totals. That
+must not grow by more than ~10%; in-series wiring fails this dramatically, not
+marginally. It has to be high speed: at 1× the replay has slack and catches up
+after a stall by emitting everything due at once, so a blocked sink is hidden.
+At high speed there is no slack, and any time the sink spends blocked adds
+directly to the run. The content comparison proves nothing was lost; the timing
+comparison is the half that tests the topology.
 
 **Out-of-order samples.** Every stream's timestamps are strictly increasing in
 the fixture and must be strictly increasing in what the writers emit. Assert it

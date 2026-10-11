@@ -20,7 +20,8 @@ def _manifest() -> Manifest:
                 epoch_utc=1774477258.390783,
                 epoch_method="derived:min(local_ts-device_ts)",
                 epoch_uncertainty_s=0.0008,
-                coverage=(1774477258.39, 1774477562.11),
+                coverage_local=(0.0, 303.72),
+                coverage_utc=(1774477258.39, 1774477562.11),
                 n_samples=30412,
             ),
             # Epoch not yet derived, capture still open: everything nullable stays None.

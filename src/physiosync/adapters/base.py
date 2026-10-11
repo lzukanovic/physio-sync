@@ -19,12 +19,13 @@ class StreamSpec:
     """``<adapter>.<stream>``. Also the manifest key and the Parquet file stem."""
     columns: tuple[str, ...]
     """Every column a batch carries, timestamp columns included (e.g. ``t``, ``arrival_ts``)."""
+    time_column: str
+    """The stream's own time base (``t``, ``device_ts``), one of ``columns``. Required: every stream
+    has one, and the writer (``coverage_local``) and live feed (buffer bound, decimation) rely on it."""
     channels: tuple[str, ...] = ()
     """Signal columns among ``columns`` (e.g. ``A1``..``A6``); the rest is timing/diagnostics."""
     nominal_hz: float | None = None
     """Nominal rate; ``None`` if irregular (SCANeR)."""
-    time_column: str | None = None
-    """The stream's own time base (``t``, ``device_ts``); gives the manifest's ``coverage_local``."""
     time_is_utc: bool = False
     """``time_column`` is already UTC seconds (BITalino ``t``); else it needs the stream epoch."""
 

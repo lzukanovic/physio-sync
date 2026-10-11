@@ -158,7 +158,7 @@ def test_refusals_leave_nothing(tmp_path):
 
 def test_failed_adapter_start_stops_the_others_and_deletes_the_take(tmp_path):
     class Broken:
-        id, streams = "broken", [StreamSpec(id="broken.x", columns=("v",))]
+        id, streams = "broken", [StreamSpec(id="broken.x", columns=("t",), time_column="t")]
 
         async def probe(self):
             return DeviceStatus(connected=True)

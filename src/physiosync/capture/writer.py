@@ -102,9 +102,8 @@ class Writer:
         if n:
             self.n_samples[sid] += n
             tc = self._specs[sid].time_column
-            if tc is not None:
-                self.first.setdefault(sid, batch.columns[tc][0])
-                self.last[sid] = batch.columns[tc][-1]
+            self.first.setdefault(sid, batch.columns[tc][0])
+            self.last[sid] = batch.columns[tc][-1]
 
     def _flush(self) -> None:
         for f in self._files.values():

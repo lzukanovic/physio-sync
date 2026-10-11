@@ -59,6 +59,10 @@ class LiveFeed:
         self._last_kept: dict[str, float] = {}
         self.dropped: dict[str, int] = {}
         """Samples shed from the input buffers since the take started. Display path only."""
+        self.received: dict[str, int] = {}
+        """Samples that reached ``put`` since the take started: the true per-stream count (ADR 0014)."""
+        self.t_start: float | None = None
+        """The take's ``started_utc``, so a client that (re)connects mid-take can show elapsed time."""
         self.recording = False
         self.clients: set[Client] = set()
         self._warned = False
@@ -69,6 +73,8 @@ class LiveFeed:
             self._specs = {s.id: s for s in streams}
             self._buf = {s.id: deque() for s in streams}
             self.dropped = {s.id: 0 for s in streams}
+            self.received = {s.id: 0 for s in streams}
+            self.t_start = None
             self._last_kept = {}
             self.recording = True
 
@@ -89,6 +95,7 @@ class LiveFeed:
             with self._lock:
                 buf = self._buf[sid]
                 buf.append(batch)
+                self.received[sid] += len(batch.columns[tc])
                 while newest - buf[0].columns[tc][-1] > WINDOW_S:
                     self.dropped[sid] += len(buf.popleft().columns[tc])
         except Exception:
@@ -110,10 +117,13 @@ class LiveFeed:
             bufs = self._buf
             self._buf = {sid: deque() for sid in bufs}
             dropped = dict(self.dropped)
+            received = dict(self.received)
             specs = self._specs
         frame = {
             "t_utc": time.time(),
             "recording": self.recording,
+            "t_start": self.t_start,
+            "received": received,
             "dropped": dropped,
             "streams": {sid: self._decimate(specs[sid], b) for sid, b in bufs.items()},
         }

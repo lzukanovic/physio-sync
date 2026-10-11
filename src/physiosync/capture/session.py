@@ -103,6 +103,7 @@ class SessionManager:
 
                 wall, mono = time.time(), time.monotonic()
                 self.manifest.started_utc = wall
+                self.live.t_start = wall
                 self.manifest.wall_monotonic_delta = (wall - mono, None)
                 for a in adapters:
                     epochs = await a.start(sink)

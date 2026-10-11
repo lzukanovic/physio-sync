@@ -28,13 +28,15 @@ def test_buffer_is_bounded_in_stream_time_and_drops_are_cumulative():
     frame = feed.tick()
     assert frame["streams"]["s.x"]["t"] == [8.0, 8.5, 9.0, 9.5, 10.0]  # last WINDOW_S only
     assert frame["dropped"] == {"s.x": 16}
+    assert frame["received"] == {"s.x": 21}  # true count, not the decimated one
     assert batches == before  # the writer serialises these same objects
 
     for i in range(21, 41):
         feed.put(SampleBatch("s.x", {"t": [i * 0.5], "v": [i]}))
     assert feed.tick()["dropped"] == {"s.x": 31}  # cumulative over the take, not per frame
     feed.reset([SPEC])
-    assert feed.tick()["dropped"] == {"s.x": 0}
+    frame = feed.tick()
+    assert frame["dropped"] == {"s.x": 0} and frame["received"] == {"s.x": 0}
 
 
 def test_decimates_to_max_hz_by_the_streams_own_clock():
@@ -156,7 +158,15 @@ def client(tmp_path):
 def test_ws_live_and_session_routes(client, tmp_path):
     with client.websocket_connect("/ws/live") as ws:
         frame = ws.receive_json()
-        assert frame.keys() == {"t_utc", "recording", "dropped", "streams", "skipped"}
+        assert frame.keys() == {
+            "t_utc",
+            "recording",
+            "t_start",
+            "received",
+            "dropped",
+            "streams",
+            "skipped",
+        }
         assert frame["recording"] is False
 
         r = client.post("/api/session/start", json={aid: {"speed": 5} for aid in BOTH})
@@ -170,8 +180,11 @@ def test_ws_live_and_session_routes(client, tmp_path):
                 break
         assert set(frame["streams"]) == set(FILES)
         assert frame["dropped"] == {sid: 0 for sid in FILES}  # 5x fits the window
+        received = frame["received"]
     # Browser gone; stop must still finalise.
     m = client.post("/api/session/stop").json()
+    assert frame["t_start"] == m["started_utc"]
+    assert all(0 < received[sid] <= s["n_samples"] for sid, s in m["streams"].items())
     assert all(s["n_samples"] > 0 for s in m["streams"].values())
     assert m["warnings"] == []
     assert client.post("/api/session/stop").status_code == 409

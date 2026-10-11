@@ -1,44 +1,20 @@
 """Session manager + writers against fixtures/live-capture/. The golden-file test lives here."""
 
 import asyncio
-import csv
-import gzip
-import json
 import time
 import zlib
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
+from helpers import ABSOLUTE, BOTH, COUNTS, FILES, fixture_csv, read_jsonl, strictly_increasing
 
 from physiosync.adapters import ADAPTERS
 from physiosync.adapters.base import DeviceStatus, SampleBatch, StreamSpec
-from physiosync.adapters.replay import _column
 from physiosync.capture.session import SessionError, SessionManager
 from physiosync.capture.writer import Writer, raw_path
 from physiosync.store.manifest import read_manifest
 
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "live-capture"
-FILES = {
-    "bitalino.main": "bitalino.csv",
-    "tobii.gaze": "tobii_gaze.csv",
-    "tobii.imu": "tobii_imu.csv",
-}
-COUNTS = {"bitalino.main": 18000, "tobii.gaze": 17878, "tobii.imu": 23481}
-BOTH = ("replay:bitalino", "replay:tobii")
 TIMESTAMPS = {"t", "arrival_ts", "device_ts", "local_ts"}
-ABSOLUTE = {"arrival_ts", "local_ts"}  # recorded value + one constant shift per device (ADR 0009)
-
-
-def _fixture(name: str) -> tuple[list[str], list[list[str]]]:
-    with open(FIXTURE / name, newline="") as f:
-        rows = list(csv.reader(line for line in f if line.strip() and not line.startswith("#")))
-    return [_column(h) for h in rows[0]], rows[1:]
-
-
-def _jsonl(take: Path, sid: str) -> list[dict]:
-    with gzip.open(raw_path(take / "raw", sid), "rt") as f:  # raises if the gzip is incomplete
-        return [json.loads(line) for line in f]
 
 
 def _session(tmp_path, body, adapters=BOTH, **cfg):
@@ -50,10 +26,6 @@ def _session(tmp_path, body, adapters=BOTH, **cfg):
     return asyncio.run(go())
 
 
-def _strictly_increasing(xs) -> bool:
-    return all(a < b for a, b in pairwise(xs))
-
-
 def test_golden_file(tmp_path):
     async def until_complete(mgr):
         deadline = time.monotonic() + 30
@@ -62,11 +34,11 @@ def test_golden_file(tmp_path):
         return await mgr.stop()
 
     take, m = _session(tmp_path, until_complete, speed=1000)
-    out = {sid: _jsonl(take, sid) for sid in FILES}
+    out = {sid: read_jsonl(take, sid) for sid in FILES}
 
     # Exactly the fixture's samples, in order, every column.
     for sid, name in FILES.items():
-        names, rows = _fixture(name)
+        names, rows = fixture_csv(name)
         assert len(out[sid]) == len(rows) == COUNTS[sid]
         expected_keys = (["t"] if sid == "bitalino.main" else []) + names
         assert list(out[sid][0]) == expected_keys
@@ -82,7 +54,7 @@ def test_golden_file(tmp_path):
     # Every timestamp column of every stream strictly increasing (docs/adapters.md).
     for sid, rows in out.items():
         for col in TIMESTAMPS & rows[0].keys():
-            assert _strictly_increasing([r[col] for r in rows]), f"{sid}.{col}"
+            assert strictly_increasing([r[col] for r in rows]), f"{sid}.{col}"
     bita = out["bitalino.main"]
 
     # BITalino sequence unbroken, and t is t_start + (nseq - nseq_first) / 100.
@@ -100,7 +72,7 @@ def test_golden_file(tmp_path):
     assert 0 <= t0 - m.started_utc < 0.1  # the adapter's own t_start, just after the session's
     assert b.coverage_local == b.coverage_utc == (t0, bita[-1]["t"])
     for sid in ("tobii.gaze", "tobii.imu"):
-        s, (_, rows) = m.streams[sid], _fixture(FILES[sid])
+        s, (_, rows) = m.streams[sid], fixture_csv(FILES[sid])
         assert s.source == "replay:tobii" and s.epoch_utc is None
         assert s.coverage_local == (float(rows[0][0]), float(rows[-1][0]))
         assert s.coverage_utc is None  # needs the epoch, derived post-stop (Phase 3)
@@ -120,7 +92,7 @@ def test_stop_at_any_point_finalises_consistently(tmp_path, seconds):
 
     take, m = _session(tmp_path, stop_after, speed=1.0)
     for sid in FILES:
-        assert len(_jsonl(take, sid)) == m.streams[sid].n_samples
+        assert len(read_jsonl(take, sid)) == m.streams[sid].n_samples
     if seconds:
         assert 30 <= m.streams["bitalino.main"].n_samples <= 60
     assert m.warnings == []

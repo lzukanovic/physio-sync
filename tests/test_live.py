@@ -7,7 +7,7 @@ from itertools import pairwise
 
 import pytest
 from fastapi.testclient import TestClient
-from test_capture import BOTH, COUNTS, FILES, _jsonl
+from helpers import ABSOLUTE, BOTH, COUNTS, FILES, read_jsonl
 
 from physiosync import config
 from physiosync.adapters.base import SampleBatch, StreamSpec
@@ -120,7 +120,7 @@ def _same_content(a: list[dict], b: list[dict]) -> None:
     assert list(a[0]) == list(b[0])
     for c in a[0]:
         xa, xb = [r[c] for r in a], [r[c] for r in b]
-        if c in {"t", "arrival_ts", "local_ts"}:
+        if c in ABSOLUTE | {"t"}:  # BITalino t is t_start + nseq / 100
             assert [x - xb[0] for x in xb] == pytest.approx([x - xa[0] for x in xa], abs=1e-6), c
         else:
             assert xb == xa, c
@@ -139,7 +139,7 @@ def test_stalled_client_never_reaches_the_sink_or_the_disk(tmp_path):
     assert len(durations) > 1000
     assert max(durations) < PUT_MAX_S, f"max live.put {max(durations) * 1e6:.0f} us"
     for sid in FILES:
-        a, b = _jsonl(take_a, sid), _jsonl(take_b, sid)
+        a, b = read_jsonl(take_a, sid), read_jsonl(take_b, sid)
         assert len(a) == len(b) == COUNTS[sid]
         _same_content(a, b)
     # At 50x the 10 Hz drain cannot keep up within WINDOW_S: the display path sheds, disk does not.

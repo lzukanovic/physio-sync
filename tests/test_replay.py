@@ -1,24 +1,15 @@
 """Replay adapter against fixtures/live-capture/. No hardware, no pytest-asyncio."""
 
 import asyncio
-import csv
 import os
 import time
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
+from helpers import fixture_csv, strictly_increasing
 
 from physiosync.adapters import ADAPTERS
 from physiosync.adapters.replay import ReplayAdapter
-
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "live-capture"
-
-
-def _fixture_rows(name: str) -> list[list[str]]:
-    with open(FIXTURE / name, newline="") as f:
-        rows = list(csv.reader(line for line in f if line.strip() and not line.startswith("#")))
-    return rows[1:]
 
 
 def _replay(device: str, seconds: float, **cfg) -> tuple[list, object, object]:
@@ -44,13 +35,9 @@ def _concat(batches, stream_id: str) -> dict[str, list]:
     return out
 
 
-def _strictly_increasing(xs) -> bool:
-    return all(a < b for a, b in pairwise(xs))
-
-
 def test_bitalino_full_replay_is_exact():
     batches, epochs, info = _replay("bitalino", 0.5, speed=1000)
-    rows = _fixture_rows("bitalino.csv")
+    rows = fixture_csv("bitalino.csv")[1]
     out = _concat(batches, "bitalino.main")
 
     assert info.n_samples == {"bitalino.main": len(rows)} == {"bitalino.main": 18000}
@@ -58,7 +45,7 @@ def test_bitalino_full_replay_is_exact():
     assert out["A1"] == [int(r[2]) for r in rows]
     assert out["A2"] == [int(r[3]) for r in rows]
     assert all(b - a == 1 for a, b in pairwise(out["nseq"]))
-    assert _strictly_increasing(out["t"])
+    assert strictly_increasing(out["t"])
     t0 = epochs.epochs["bitalino.main"]
     assert out["t"][0] == t0 and out["t"][-1] == pytest.approx(t0 + 17999 / 100)
     # arrival_ts is the recorded arrival, shifted by a constant onto the replay's t_start.
@@ -72,16 +59,16 @@ def test_tobii_full_replay_is_exact():
     batches, epochs, info = _replay("tobii", 0.5, speed=1000)
     assert epochs.epochs == {"tobii.gaze": None, "tobii.imu": None}
     for sid, name in (("tobii.gaze", "tobii_gaze.csv"), ("tobii.imu", "tobii_imu.csv")):
-        rows = _fixture_rows(name)
+        rows = fixture_csv(name)[1]
         out = _concat(batches, sid)
         assert info.n_samples[sid] == len(rows)
         assert out["device_ts"] == [float(r[0]) for r in rows]
-        assert _strictly_increasing(out["device_ts"])
+        assert strictly_increasing(out["device_ts"])
         # Last channel column, empty cells included.
         assert list(out.values())[-1] == [float(r[-1]) if r[-1] else None for r in rows]
     # Gaze and IMU share one device clock and one shift: their local-device offset survives.
     gaze, imu = _concat(batches, "tobii.gaze"), _concat(batches, "tobii.imu")
-    g_rows, i_rows = _fixture_rows("tobii_gaze.csv"), _fixture_rows("tobii_imu.csv")
+    g_rows, i_rows = fixture_csv("tobii_gaze.csv")[1], fixture_csv("tobii_imu.csv")[1]
     assert gaze["local_ts"][0] - imu["local_ts"][0] == pytest.approx(
         float(g_rows[0][1]) - float(i_rows[0][1]), abs=1e-6
     )
@@ -131,7 +118,7 @@ def test_realtime_preserves_bluetooth_bursts():
 
 def test_seek_skips_recording_prefix():
     _, _, info = _replay("bitalino", 0.3, speed=1000, seek=100)
-    rows = _fixture_rows("bitalino.csv")
+    rows = fixture_csv("bitalino.csv")[1]
     cutoff = float(rows[0][1]) + 100
     assert info.n_samples["bitalino.main"] == sum(float(r[1]) >= cutoff for r in rows)
 

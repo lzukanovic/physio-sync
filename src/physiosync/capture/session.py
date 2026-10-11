@@ -15,7 +15,7 @@ from pathlib import Path
 
 from physiosync import __version__
 from physiosync.adapters import ADAPTERS
-from physiosync.adapters.base import SampleBatch, SourceAdapter, StopInfo
+from physiosync.adapters.base import SampleBatch, SourceAdapter, StopInfo, StreamSpec
 from physiosync.capture.live import LiveFeed
 from physiosync.capture.writer import Writer
 from physiosync.store.manifest import Manifest, StreamInfo, write_manifest
@@ -46,6 +46,7 @@ class SessionManager:
         self.take_dir: Path | None = None
         self.manifest: Manifest | None = None
         self.writer: Writer | None = None
+        self._specs: dict[str, StreamSpec] = {}
         self._adapters: list[SourceAdapter] = []
 
     @property
@@ -89,6 +90,7 @@ class SessionManager:
                 )
                 self._write()
                 specs = [s for a in adapters for s in a.streams]
+                self._specs = {s.id: s for s in specs}
                 self.writer = Writer(self.take_dir / "raw", specs)
                 self.live.reset(specs)
                 writer, live = self.writer, self.live
@@ -124,13 +126,12 @@ class SessionManager:
             m, w = self.manifest, self.writer
             m.stopped_utc = wall
             m.wall_monotonic_delta = (m.wall_monotonic_delta[0], wall - mono)
-            specs = {s.id: s for a in self._adapters for s in a.streams}
             for sid, info in m.streams.items():
                 info.n_samples = w.n_samples[sid]
                 if sid in w.first:
                     local = (w.first[sid], w.last[sid])
                     info.coverage_local = local
-                    if specs[sid].time_is_utc:
+                    if self._specs[sid].time_is_utc:
                         info.coverage_utc = local
                     elif info.epoch_utc is not None:
                         info.coverage_utc = (info.epoch_utc + local[0], info.epoch_utc + local[1])

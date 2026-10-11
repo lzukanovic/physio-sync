@@ -30,6 +30,10 @@ The two paths out of an adapter are deliberate and must stay separate:
 - **Display path.** Decimated to 10–20 Hz, batched, dropped freely under load.
   Monitoring only. Nothing depends on it being complete.
 
+Both are fed by one fan-out sink call; the decimator is never between an adapter
+and the writer. Buffers are bounded in each stream's own time. See
+`docs/decisions/0013-live-feed.md`.
+
 ## Stack
 
 | Layer          | Choice                                  | Why                                                                                 |

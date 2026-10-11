@@ -12,7 +12,7 @@ follows.
 
 ## Environment
 
-`conda activate mag_env`. Do not create a venv and do not change the
+`conda activate physio_sync_env`. Do not create a venv and do not change the
 environment's Python version.
 
 ## Scope
@@ -36,18 +36,21 @@ environment's Python version.
      The burst structure (~3.3 samples arriving ~1.27 ms apart, then ~30 ms of
      silence) is the phenomenon this fixture exists to carry.
    - Pace Tobii from `DeviceTS`.
-   - Rebase every stream onto session t=0, so the three play together despite
+   - Rebase every device onto session t=0 (streams of one device keep their
+     relative offset; ADR 0009), so the three play together despite
      having been recorded separately.
    - Support a speed multiplier (1.0 realistic, higher for fast tests) and a
      seek offset.
    - Accept a directory path, so it can also be pointed at data generated later
      for long runs or fault injection.
-   - Registered as `replay:<stream>`.
+   - Registered as `replay:<device>` (`replay:bitalino`, `replay:tobii`; see ADR 0009).
 
 3. **Session manager.** Start, stop, cancel. Owns adapter lifecycles. Records
    `t_start` and `t_stop` as host wall-clock. Creates the take directory, writes
    the manifest incrementally, finalises it on stop. Cancel deletes the
    directory. Must be safe to stop at any point, including mid-batch.
+   Before planning, read the `docs/plan.md` open item on host wall-clock
+   corrections and decide with the user whether its start/stop check lands here.
 
 4. **Writers.** One gzipped JSONL file per stream under `raw/`. Append-only.
    Flush at least every 2 seconds so a crash costs seconds, not the take. Never
@@ -64,8 +67,9 @@ environment's Python version.
    not backlog.
 
 7. **Minimal UI.** One page: start/stop/cancel, elapsed timer, an unambiguous
-   recording indicator, one scrolling live chart showing a 20-second window, a
-   sample counter per stream, and the decimator's drop count. Function over
+   recording indicator, a scrolling 20-second live view with **one pane per
+   stream, each on its own time axis** (the live view does not align streams;
+   ADR 0013), a sample counter per stream, and the decimator's drop count. Function over
    appearance — the designed screens come in Phase 4.
 
 8. **Golden-file test.** Run a replay session at high speed and assert:
@@ -95,9 +99,21 @@ management, playback, styling.
 **The decimator wired in series with the writers.** This is the most likely
 failure: if a slow WebSocket client can stall disk writes, the design is wrong
 even though everything appears to work. The decimator must be an independent
-consumer with its own bounded queue. Verify explicitly — run a session with no
-client connected, and again with a deliberately slow client, and confirm the
-JSONL is byte-identical.
+consumer with its own bounded queue. Verify explicitly: run a session with no
+client connected, and again with a deliberately slow client. Decompress both
+takes and compare sample content and ordering per stream, allowing for the
+per-run `t_start` shift. They must be identical — if a slow client changes what
+lands on disk, the decimator is wired in series. (Not byte-identical: flush
+points and `t_start` vary per run; see ADR 0010.)
+
+Content alone is necessary but not sufficient: a decimator wired in series still
+writes identical content, just later. So also time the sink: with a client
+stalled 0.5 s per frame, the max duration of `live.put` must stay well under a
+millisecond. (This brief originally said to compare whole-run wall time at high
+speed. That cannot work against the replay adapter at any speed: it catches up
+after a stall by emitting one bigger batch, so the run does not get longer. See
+ADR 0013. Against real hardware, which has no catch-up, the wall-time check is
+meaningful and belongs in Phase 2a.)
 
 **Out-of-order samples.** Every stream's timestamps are strictly increasing in
 the fixture and must be strictly increasing in what the writers emit. Assert it

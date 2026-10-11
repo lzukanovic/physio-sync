@@ -77,6 +77,7 @@ conda activate physio_sync_env
 pip install -e ".[dev]"              # project itself, into the conda env
 python -m physiosync                 # run the app (serves UI at :8000)
 python -m physiosync.devcheck <dev>  # connect to one device, print samples, exit
+python -m physiosync.devcheck replay --seconds 30  # replay session end to end, print take + counts
 pytest                               # tests, run against fixtures/ (no hardware)
 npm --prefix web run dev             # frontend dev server, proxies /api to :8000
 npm --prefix web run build           # build into src/physiosync/web/

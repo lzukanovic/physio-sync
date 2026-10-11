@@ -43,7 +43,8 @@ One adapter per session, one branch each. Each is verified with
 plus one Mac folder) into `src/physiosync/vendor/`. Port the binary loader
 from the MVP with the path and error-handling fixes in `docs/adapters.md`. Three
 timestamp columns. `nSeq` continuity assertion. Settle by measurement whether
-`nSeq` wraps.
+`nSeq` wraps. Re-run the live-feed topology check by wall time against the real
+device, where a stalled sink cannot be hidden by catch-up (ADR 0013).
 
 **2b — Tobii.** Via g3pylib. Discovery (Zeroconf, mDNS, AP address, manual). Gaze
 and IMU, storing `device_ts` and `local_ts`. NTP check and warning tag.
@@ -108,8 +109,37 @@ sleep and USB selective suspend. Packaging and the lab install procedure.
   depends on `simp16/glasses3-pylib` at a single commit — one person's account,
   and the entire Tobii path rests on it. Same commit, own remote. Do before the
   first real measurement session.
+- **Tobii IMU is mixed-rate with nulls** (accel/gyro ~120 Hz, magnetometer ~10 Hz,
+  interleaved row by row, each null in the other's columns). Phase 3 resampling onto
+  the reference axis cannot treat it as one uniform stream: split it per sensor, or
+  resample per channel over that channel's non-null rows. The live feed already
+  decimates per channel for the same reason (ADR 0015). The exploratory analysis
+  (`fig_imu_spectrum`, the decimation figure) knew this; the platform must too.
+  Settled by the original 7 s capture (`tobii_imu_20260325_231244.csv`): the device
+  samples the magnetometer evenly (101.6 ms median `DeviceTS` gap, none under 5 ms). Arrival batching is a
+  transport artefact and belongs in `local_ts` only (`fixtures/README.md`).
+- **Real Tobii IMU breaks "every timestamp column strictly increasing".**
+  Magnetometer arrives in batches covering ~800 ms of device time, so in arrival
+  order `device_ts` jumps backwards at each batch (8 inversions of 1.35–1.48 s in
+  930 rows in the original capture). The fixture satisfies the invariant only because it was
+  idealised, so the golden-file test's assertion will fail against the real
+  adapter. Decide in Phase 2b: the Tobii adapter sorts each batch by `device_ts`
+  before emitting (clean, delays delivery slightly), or the invariant is relaxed to
+  `device_ts` strictly increasing per stream with `local_ts` allowed to interleave.
 - SCANeR: what its log's timestamp column is, and whether a REST extension exists.
 - Whether `nSeq` wraps under the PLUX SDK (settle in 2a by measurement).
 - Whether Tobii device clock and host clock agree on the length of a second over
   a long capture — decides whether the epoch is a constant or a linear fit.
   Requires one 10-minute capture.
+- **Host wall-clock corrections during a take.** `arrival_ts`, `local_ts` and
+  `t_start` come from `time.time()`, which NTP may step or slew mid-recording. A
+  step would bias the Tobii epoch (`min(local_ts − device_ts)` picks one side of
+  it) and the `system.time` drift measurement, which uses the host as its ruler.
+  BITalino `t` is exposed only through `t_start`. Nothing currently detects this.
+  Cheapest detection: record `time.time() − time.monotonic()` at start and stop
+  (manifest, flag in the quality report above a threshold); sampling it
+  periodically as its own stream would also say *when*. Suspected once during the
+  Task 01 long replay test (78 ms over 3 min, not reproduced). **Partly
+  resolved:** the session manager records `wall_monotonic_delta` at start and
+  stop (ADR 0012); the quality report flags `stop − start` (Phase 3); periodic
+  sampling only if Phase 6 needs to know *when*.

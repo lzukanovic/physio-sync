@@ -16,7 +16,7 @@ imitate. 180 seconds per stream.
 | ---------------- | ----- | -------- | -------- | ------------------------------------------------------------- |
 | `bitalino.csv`   | 18000 | 179.94 s | 100.0 Hz | `Sequence` 0–17999 unbroken; `Timestamp` is host arrival time |
 | `tobii_gaze.csv` | 17878 | 179.09 s | 99.8 Hz  | `DeviceTS` relative to stream open, `LocalTS` arrival         |
-| `tobii_imu.csv`  | 23481 | 180.45 s | 130.1 Hz | magnetometer at 9.8 Hz; other rows leave those columns empty  |
+| `tobii_imu.csv`  | 23481 | 180.37 s | 130.2 Hz | magnetometer at 9.8 Hz; other rows leave those columns empty  |
 
 ### Provenance
 
@@ -33,12 +33,22 @@ Timing characteristics were preserved and verified after extension:
 - Tobii gaze and IMU are strictly monotonic in `DeviceTS`, with the derived
   epoch (`min(LocalTS − DeviceTS)`) stable to ~117 ms across the stream.
 
-One defect was corrected during preparation: the extension gave the IMU
-magnetometer its own clock running ~1.4 s behind the accelerometer and
+One defect was corrected during preparation. The extension gave the IMU
+magnetometer its own clock, running ~1.4 s behind the accelerometer and
 gyroscope, and interleaved those rows by position rather than by time, producing
-333 out-of-order samples. The magnetometer's `DeviceTS` was rebuilt from
-`LocalTS` using the epoch derived from the accel/gyro rows, and the file
-re-sorted. Epoch spread went from 1486 ms to 117 ms.
+333 rows whose `DeviceTS` went backwards.
+
+A first correction rebuilt the magnetometer's `DeviceTS` as `LocalTS − min(LocalTS − DeviceTS)`
+over the accel/gyro rows and re-sorted by `DeviceTS`. That fixed `DeviceTS` but
+broke `LocalTS`: every accel/gyro row sits at or above that minimum offset, so
+the rebuilt magnetometer rows landed systematically early and 162 `LocalTS`
+inversions appeared, up to 106 ms.
+
+The file here uses the second correction. `LocalTS` is taken as the arrival
+order, which the source already had monotonic, and each magnetometer row's
+`DeviceTS` is interpolated onto the `DeviceTS`-versus-`LocalTS` curve defined by
+the surrounding accel/gyro rows. Both columns are now strictly increasing. Epoch
+spread is 117 ms, matching the gaze stream.
 
 **Sample values repeat on a cycle.** Fine for timing and plumbing; nothing about
 signal content should be concluded from this fixture.

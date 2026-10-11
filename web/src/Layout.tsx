@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { fetchHealth, type Health } from "./api";
 
 const links = [
+  { to: "/capture", label: "Capture" },
   { to: "/studies", label: "Studies" },
   { to: "/devices", label: "Devices" },
 ];
